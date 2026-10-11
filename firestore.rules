@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Hanya dua akaun ni boleh baca/tulis.
+    function isMember() {
+      return request.auth != null
+        && request.auth.token.email in ['adzim82@gmail.com', 'wahidah.syed@gmail.com'];
+    }
+    match /households/{household} {
+      allow read, write: if isMember();
+      match /months/{month} {
+        allow read, write: if isMember();
+      }
+    }
+  }
+}

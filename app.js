@@ -40,7 +40,9 @@ let data = (() => {
 function save() {
   data.updatedAt = new Date().toISOString();
   if (!lsSet(STORE_KEY, JSON.stringify(data))) toast('Gagal simpan! Storan penuh? Buat backup sekarang.');
+  if (window.mcSync) window.mcSync.push();
 }
+const syncOn = () => !!(window.mcSync && window.mcSync.state.user);
 
 /* ================= UI state ================= */
 const ui = Object.assign({ view: 'month', person: 'all', month: null, showEmpty: false, histYear: null },
@@ -177,7 +179,7 @@ function render() {
 
 function renderBanner() {
   const el = $('#banner');
-  if (!data || !data.updatedAt) { el.innerHTML = ''; return; }
+  if (!data || !data.updatedAt || syncOn()) { el.innerHTML = ''; return; }
   const last = data.lastBackupAt ? new Date(data.lastBackupAt) : null;
   const changed = !last || new Date(data.updatedAt) > last;
   const old = !last || (Date.now() - last) > 14 * 864e5;
@@ -190,8 +192,9 @@ function renderBanner() {
 function welcomeHtml() {
   return `<div class="empty-state card">
     <h2>Selamat datang 👋</h2>
-    <p>Data disimpan dalam browser/peranti ni sahaja. Pulihkan fail backup (contohnya <b>backup-awal.json</b> yang dijana dari Excel), atau mula kosong.</p>
+    <p>Log masuk sync untuk ambil data dari cloud, atau pulihkan fail backup (contohnya <b>backup-awal.json</b> yang dijana dari Excel), atau mula kosong.</p>
     <div class="btns">
+      ${window.FIREBASE_CONFIG ? '<button class="btn primary" data-act="sync">☁ Log masuk sync</button>' : ''}
       <button class="btn primary" data-act="restore">⭱ Pulihkan dari backup</button>
       <button class="btn" data-act="startEmpty">Mula kosong</button>
     </div></div>`;
@@ -390,7 +393,8 @@ function editEntry(pid, iid, k) {
 
 function editItem(pid, iid) {
   const isNew = !iid;
-  const it = isNew ? { id: '', name: '', jompay: '', account: '', info: '', hidden: false } : findItem(pid, iid);
+  const newIt = { id: '', name: '', jompay: '', account: '', info: '', hidden: false };
+  const it = isNew ? newIt : findItem(pid, iid);
   const list = itemsOf(pid), idx = list.indexOf(it);
   openDialog(`<h3>${isNew ? 'Item baru' : 'Edit item'}</h3><div class="subt">${esc(personName(pid))}</div>
     <label class="f">Nama<input name="name" required value="${esc(it.name)}"></label>
@@ -406,8 +410,12 @@ function editItem(pid, iid) {
       <button class="btn" value="cancel" formnovalidate>Batal</button>
       <button class="btn primary" value="save">Simpan</button></div>`,
     (act, fd) => {
+      // Data may have been replaced by a cloud sync while the dialog was open
+      const list = itemsOf(pid), it = isNew ? newIt : findItem(pid, iid), idx = list.indexOf(it);
+      if (!it) return;
       if (act === 'up' || act === 'down') {
         const j = act === 'up' ? idx - 1 : idx + 1;
+        if (j < 0 || j >= list.length) return;
         [list[idx], list[j]] = [list[j], list[idx]];
         save(); render(); setTimeout(() => editItem(pid, iid), 0); return;
       }
@@ -476,6 +484,27 @@ function editRef(pid, i) {
 }
 
 /* ================= Actions ================= */
+function confirmTogglePaid(pid, iid, k) {
+  const it = findItem(pid, iid), e = monthEntries(k, pid)[iid];
+  if (!it || !e) return;
+  const v = valueOf(e.v);
+  const amt = v.empty ? '' : v.text !== null ? v.text : fmt(v.n);
+  const toPaid = !e.paid;
+  openDialog(`<h3>${toPaid ? 'Tanda dah bayar?' : 'Batal status bayar?'}</h3>
+    <div class="subt">${esc(personName(pid))} · ${esc(monthLabel(k))}</div>
+    <p style="margin:0"><b>${esc(it.name)}</b>${amt ? ` — <span class="num">${esc(amt)}</span>` : ''}</p>
+    ${toPaid ? '' : `<p style="margin:0;color:var(--muted);font-size:13px">Item ni akan jadi "belum bayar" semula${e.paidAt ? ` (sebelum ni ditanda ${shortDate(e.paidAt)})` : ''}.</p>`}
+    <div class="dlg-actions"><button class="btn" value="cancel" formnovalidate>Batal</button>
+      <button class="btn ${toPaid ? 'primary' : 'danger'}" value="ok">${toPaid ? '✓ Ya, dah bayar' : 'Ya, belum bayar'}</button></div>`,
+    () => {
+      const cur = monthEntries(k, pid)[iid];  // re-read in case sync replaced data
+      if (!cur) return;
+      cur.paid = toPaid;
+      if (toPaid) cur.paidAt = todayIso(); else delete cur.paidAt;
+      save(); render();
+    });
+}
+
 function newMonth() {
   const latest = latestMonth();
   if (!latest) {
@@ -552,7 +581,7 @@ function restoreFile(file) {
     try { d = JSON.parse(fr.result); } catch { return toast('Fail bukan JSON yang sah'); }
     if (!d || d.app !== 'monthly-commitment' || !d.months || !d.items) return toast('Ini bukan fail backup Komitmen Bulanan');
     const n = Object.keys(d.months).length;
-    if (data && !confirm(`Ganti semua data sekarang dengan backup ni (${n} bulan, kemaskini ${d.updatedAt ? new Date(d.updatedAt).toLocaleString('ms-MY') : '?'})?`)) return;
+    if (data && !confirm(`Ganti semua data sekarang dengan backup ni (${n} bulan, kemaskini ${d.updatedAt ? new Date(d.updatedAt).toLocaleString('ms-MY') : '?'})?${syncOn() ? '\n\nSync aktif: data cloud (semua peranti) pun akan diganti.' : ''}`)) return;
     if (data) lsSet(PREV_KEY, JSON.stringify(data));
     const prev = data;
     data = normalize(d);
@@ -596,12 +625,7 @@ document.addEventListener('click', ev => {
 
   const { p, i } = t.dataset;
   switch (t.dataset.act) {
-    case 'togglePaid': {
-      const e = monthEntries(ui.month, p)[i];
-      e.paid = !e.paid;
-      if (e.paid) e.paidAt = todayIso(); else delete e.paidAt;
-      save(); render(); break;
-    }
+    case 'togglePaid': confirmTogglePaid(p, i, ui.month); break;
     case 'editEntry': editEntry(p, i, t.dataset.k); break;
     case 'addEntry': addEntry(p); break;
     case 'editItem': editItem(p, i); break;
@@ -624,6 +648,11 @@ document.addEventListener('click', ev => {
     case 'restore': menu.hidden = true; $('#fileRestore').click(); break;
     case 'csv': menu.hidden = true; exportCsv(); break;
     case 'deleteMonth': menu.hidden = true; deleteLatestMonth(); break;
+    case 'sync':
+      menu.hidden = true;
+      if (window.mcSync) window.mcSync.openDialog();
+      else toast(window.FIREBASE_CONFIG ? 'Modul sync belum dimuatkan — semak internet' : 'Sync belum disetup (firebase-config.js kosong)');
+      break;
   }
 });
 
@@ -653,5 +682,20 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
 }
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+/* ================= Bridge for sync.js ================= */
+window.mcApp = {
+  getData: () => data,
+  /* Replace data with a copy from the cloud without triggering a push. */
+  setData(d) {
+    const keep = data ? { lastBackupAt: data.lastBackupAt, updatedAt: data.updatedAt } : {};
+    if (data) lsSet(PREV_KEY, JSON.stringify(data));
+    data = normalize(Object.assign(JSON.parse(JSON.stringify(d)), keep));
+    lsSet(STORE_KEY, JSON.stringify(data));
+    if (!ui.month || !data.months[ui.month]) ui.month = latestMonth();
+    render();
+  },
+  render, toast, openDialog, esc,
+};
 
 render();

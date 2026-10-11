@@ -17,6 +17,25 @@ Sebab data dalam browser:
 - Telefon Adzim & telefon Wahidah ada data berasingan. Untuk kongsi, buat backup di satu telefon → hantar fail → Pulihkan di telefon lain.
 - Kalau clear data browser / uninstall app, data hilang — buat backup selalu (app akan ingatkan selepas 14 hari).
 
+## Sync cloud (Firebase) — data sama di semua phone & komputer
+
+Data disimpan dalam Firestore; hanya email yang disenaraikan dalam `firestore.rules` boleh baca/tulis.
+Setiap perubahan dihantar per sel, jadi Adzim & Wahidah boleh edit serentak. Offline pun boleh — dihantar bila ada internet.
+
+Setup sekali sahaja (percuma, pelan Spark):
+
+1. Buka https://console.firebase.google.com → **Create a project** (cth `komitmen-bulanan`). Google Analytics tak perlu.
+2. **Build → Authentication → Get started → Sign-in method → Email/Password → Enable**.
+3. **Authentication → Users → Add user** — buat dua akaun: email Adzim & email Wahidah, masing-masing dengan password sendiri.
+4. **Build → Firestore Database → Create database** → lokasi `asia-southeast1 (Singapore)` → **production mode**.
+5. **Firestore → Rules** → tampal isi `firestore.rules` → **Publish**.
+6. **Project settings (⚙) → Your apps → Web (`</>`)** → daftar app → salin objek `firebaseConfig`.
+7. Tampal dalam `firebase-config.js` (`window.FIREBASE_CONFIG = { ... }`), naikkan `CACHE` dalam `sw.js`, commit & push.
+8. Buka app → ☁ (atas kanan) → log masuk. Peranti pertama yang log masuk (yang dah ada data) akan upload datanya ke cloud;
+   peranti lain akan tarik data dari cloud.
+
+`firebase-config.js` selamat dipublish — keselamatan dikawal oleh rules + login.
+
 ## Import dari Excel (sekali sahaja)
 
 ```bash

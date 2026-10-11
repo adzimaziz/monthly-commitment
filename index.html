@@ -23,7 +23,8 @@
         <button data-view="info"><span class="ti" aria-hidden="true">ⓘ</span><span>Info</span></button>
       </nav>
       <div class="top-actions">
-        <button class="btn ghost" id="btnBackup" title="Muat turun backup">⭳ Backup</button>
+        <button class="btn ghost" id="btnSync" data-act="sync" hidden>☁</button>
+        <button class="btn ghost" id="btnBackup" title="Muat turun backup">⭳<span class="lbl"> Backup</span></button>
         <button class="btn ghost icon" id="btnMenu" title="Menu" aria-label="Menu">⋮</button>
       </div>
     </div>
@@ -40,6 +41,8 @@
   <main id="app"></main>
 
   <div id="menuPop" class="menu" hidden>
+    <button data-act="sync">☁ Sync cloud…</button>
+    <hr>
     <button data-act="backup">⭳ Muat turun backup (JSON)</button>
     <button data-act="share">⇪ Kongsi backup…</button>
     <button data-act="restore">⭱ Pulihkan dari backup…</button>
@@ -52,6 +55,8 @@
   <input type="file" id="fileRestore" accept="application/json,.json" hidden>
   <div id="toast" role="status" aria-live="polite"></div>
 
+  <script src="firebase-config.js"></script>
   <script src="app.js"></script>
+  <script type="module" src="sync.js"></script>
 </body>
 </html>

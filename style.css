@@ -40,6 +40,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -61,6 +62,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .topbar-row { display: flex; align-items: center; gap: 8px; max-width: 1200px; margin: 0 auto; }
 h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; }
 .top-actions { display: flex; gap: 4px; }
+#btnSync[data-state="ok"] { color: var(--paid); }
+#btnSync[data-state="offline"], #btnSync[data-state="signedout"] { color: var(--muted); }
+#btnSync[data-state="error"] { color: var(--danger); }
 .filters { max-width: 1200px; margin: 8px auto 0; display: flex; gap: 4px; }
 .tabs { display: flex; gap: 4px; margin-right: auto; margin-left: 16px; }
 .tabs button {
@@ -269,6 +273,7 @@ details.ended summary { cursor: pointer; color: var(--muted); font-size: 13px; f
   .tabs .ti { font-size: 20px; }
   main { padding: 10px 12px; }
   .btn#btnBackup { padding: 6px 8px; }
+  #btnBackup .lbl { display: none; }
   .month-nav { gap: 6px; }
   .month-nav select { font-size: 18px; }
   .month-nav .newmonth { flex: 1; justify-content: center; }

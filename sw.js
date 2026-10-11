@@ -1,10 +1,12 @@
 // Naikkan versi bila ubah mana-mana fail app supaya telefon dapat versi baru.
-const CACHE = 'komitmen-v2';
+const CACHE = 'komitmen-v4';
 const ASSETS = [
   './',
   'index.html',
   'style.css',
   'app.js',
+  'sync.js',
+  'firebase-config.js',
   'manifest.webmanifest',
   'icons/icon-192.png',
   'icons/icon-512.png',
@@ -31,7 +33,10 @@ self.addEventListener('message', e => {
 // Cache dulu (laju & offline), kemudian kemaskini cache di belakang.
 self.addEventListener('fetch', e => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
+  const url = new URL(req.url);
+  // App files + Firebase SDK (versioned URL, safe to cache) so sync loads offline too.
+  const sdk = url.origin === 'https://www.gstatic.com' && url.pathname.startsWith('/firebasejs/');
+  if (req.method !== 'GET' || (url.origin !== location.origin && !sdk)) return;
   e.respondWith(
     caches.open(CACHE).then(cache =>
       cache.match(req, { ignoreSearch: true }).then(hit => {
