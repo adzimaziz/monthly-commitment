@@ -47,6 +47,7 @@ const syncOn = () => !!(window.mcSync && window.mcSync.state.user);
 /* ================= UI state ================= */
 const ui = Object.assign({ view: 'month', person: 'all', month: null, showEmpty: false, histYear: null },
   (() => { try { return JSON.parse(lsGet(UI_KEY) || '{}'); } catch { return {}; } })());
+ui.sel = null; // Set of "pid|iid" while in select-and-sum mode (not saved, not synced)
 function saveUi() { lsSet(UI_KEY, JSON.stringify({ view: ui.view, person: ui.person, showEmpty: ui.showEmpty })); }
 
 /* ================= Helpers ================= */
@@ -174,6 +175,7 @@ function render() {
   if (ui.view === 'history') app.innerHTML = historyHtml();
   else if (ui.view === 'info') app.innerHTML = infoHtml();
   else app.innerHTML = monthHtml();
+  document.body.classList.toggle('selecting', !!(ui.sel && ui.view === 'month'));
   if (ui.view === 'history') document.querySelectorAll('.grid-wrap, .hist-tools').forEach(w => { w.scrollLeft = w.scrollWidth; });
 }
 
@@ -214,6 +216,7 @@ function monthHtml() {
     <button class="btn icon" data-act="nextMonth" ${idx >= keys.length - 1 ? 'disabled' : ''} aria-label="Bulan seterusnya">›</button>
     <div class="spacer"></div>
     <label class="cb" style="font-weight:500;font-size:13px"><input type="checkbox" id="showEmpty" ${ui.showEmpty ? 'checked' : ''}> Tunjuk item kosong</label>
+    <button class="btn ${ui.sel ? 'primary' : ''}" data-act="selectMode" title="Pilih beberapa item untuk kira jumlah">${ui.sel ? '✕ Tutup pilih' : '☐ Pilih &amp; kira'}</button>
     <button class="btn primary newmonth" data-act="newMonth">+ ${esc(monthLabel(nextKey(latest)))}</button>
   </div>`;
 
@@ -246,7 +249,30 @@ function monthHtml() {
       ${t.count && t.paidCount < t.count ? `<button class="btn small ghost" data-act="markAll" data-p="${p.id}">Tanda semua dah bayar</button>` : ''}</div>`;
     html += '</div></section>';
   }
-  return html + '</div>';
+  html += '</div>';
+  if (ui.sel) html += selBarHtml(k);
+  return html;
+}
+
+function selBarHtml(k) {
+  const per = {};
+  let total = 0, n = 0;
+  for (const key of ui.sel) {
+    const [pid, iid] = key.split('|');
+    const e = monthEntries(k, pid)[iid];
+    if (!e) continue;
+    const v = valueOf(e.v).n;
+    per[pid] = (per[pid] || 0) + v; total += v; n++;
+  }
+  const parts = Object.keys(per).length > 1 ? data.people.filter(p => p.id in per).map(p => `${esc(p.name)} ${fmt(per[p.id])}`).join(' · ') : '';
+  return `<div class="selbar"><div class="selbar-in">
+    <div class="selsum"><div class="seln">${n ? `${n} item dipilih` : 'Tekan item untuk pilih'}</div>
+      <div class="seltot num">${fmt(total)}</div>${parts ? `<div class="selparts num">${parts}</div>` : ''}</div>
+    <div class="selacts">
+      <button class="btn small" data-act="selUnpaid">Belum bayar</button>
+      <button class="btn small" data-act="selAll">Semua</button>
+      ${n ? `<button class="btn small" data-act="selClear">Kosongkan</button><button class="btn small" data-copy="${total.toFixed(2)}">⧉ Salin</button>` : ''}
+    </div></div></div>`;
 }
 
 function rowHtml(k, pid, it, e) {
@@ -259,6 +285,13 @@ function rowHtml(k, pid, it, e) {
   if (!e || v.empty) amt = `<div class="amt text">—</div>`;
   else if (v.text !== null) amt = `<div class="amt text">${esc(v.text)}${paid && e.paidAt ? `<span class="paidat">✓ ${shortDate(e.paidAt)}</span>` : ''}</div>`;
   else amt = `<div class="amt num">${fmt(v.n)}${isFormula(e.v) ? `<span class="f">${esc(e.v)}</span>` : ''}${paid && e.paidAt ? `<span class="paidat">✓ ${shortDate(e.paidAt)}</span>` : ''}</div>`;
+  if (ui.sel) {
+    const on = ui.sel.has(pid + '|' + it.id);
+    return `<div class="row ${paid ? 'paid' : ''} ${e ? '' : 'empty'} ${on ? 'selected' : ''}" ${e ? `data-act="selectRow" data-p="${pid}" data-i="${it.id}"` : ''}>
+    <span class="selbox" aria-hidden="true">${on ? '✓' : ''}</span>
+    <div><div class="name">${esc(it.name)}${paid ? ' <span class="tag">dah bayar</span>' : ''}</div></div>
+    ${amt}</div>`;
+  }
   return `<div class="row ${paid ? 'paid' : ''} ${e ? '' : 'empty'}" data-act="editEntry" data-p="${pid}" data-i="${it.id}">
     ${e ? `<button class="check" data-act="togglePaid" data-p="${pid}" data-i="${it.id}" aria-label="Tanda dah bayar" aria-pressed="${!!paid}">✓</button>` : '<span class="check" style="border-style:dashed"></span>'}
     <div><div class="name">${esc(it.name)}</div>${meta.length ? `<div class="meta">${meta.join('')}</div>` : ''}
@@ -635,9 +668,25 @@ document.addEventListener('click', ev => {
       for (const e of Object.values(monthEntries(ui.month, p))) if (!e.paid) { e.paid = true; e.paidAt = todayIso(); }
       save(); render(); break;
     }
+    case 'selectMode': ui.sel = ui.sel ? null : new Set(); render(); break;
+    case 'selectRow': {
+      const key = p + '|' + i;
+      if (ui.sel.has(key)) ui.sel.delete(key); else ui.sel.add(key);
+      render(); break;
+    }
+    case 'selClear': ui.sel.clear(); render(); break;
+    case 'selAll': case 'selUnpaid': {
+      ui.sel.clear();
+      for (const per of people()) {
+        for (const [iid, e] of Object.entries(monthEntries(ui.month, per.id))) {
+          if (t.dataset.act === 'selAll' || !e.paid) ui.sel.add(per.id + '|' + iid);
+        }
+      }
+      render(); break;
+    }
     case 'prevMonth': case 'nextMonth': {
       const keys = monthKeys(), idx = keys.indexOf(ui.month) + (t.dataset.act === 'prevMonth' ? -1 : 1);
-      if (keys[idx]) { ui.month = keys[idx]; render(); }
+      if (keys[idx]) { ui.month = keys[idx]; if (ui.sel) ui.sel.clear(); render(); }
       break;
     }
     case 'newMonth': newMonth(); break;
@@ -657,7 +706,7 @@ document.addEventListener('click', ev => {
 });
 
 document.addEventListener('change', ev => {
-  if (ev.target.id === 'monthSel') { ui.month = ev.target.value; render(); }
+  if (ev.target.id === 'monthSel') { ui.month = ev.target.value; if (ui.sel) ui.sel.clear(); render(); }
   if (ev.target.id === 'showEmpty') { ui.showEmpty = ev.target.checked; saveUi(); render(); }
 });
 

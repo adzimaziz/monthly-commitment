@@ -1,5 +1,5 @@
 // Naikkan versi bila ubah mana-mana fail app supaya telefon dapat versi baru.
-const CACHE = 'komitmen-v4';
+const CACHE = 'komitmen-v5';
 const ASSETS = [
   './',
   'index.html',
