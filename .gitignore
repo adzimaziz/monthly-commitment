@@ -1,0 +1,7 @@
+# Data peribadi - JANGAN publish
+*.xlsx
+*.xls
+private/
+komitmen-backup-*.json
+komitmen-*.csv
+.claude/

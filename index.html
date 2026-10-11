@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Komitmen Bulanan</title>
+  <meta name="description" content="Urus komitmen bulanan Adzim & Wahidah">
+  <meta name="theme-color" content="#0f766e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Komitmen">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-row">
+      <h1>Komitmen Bulanan</h1>
+      <nav class="tabs" role="tablist">
+        <button data-view="month" class="active"><span class="ti" aria-hidden="true">▤</span><span>Bulan</span></button>
+        <button data-view="history"><span class="ti" aria-hidden="true">▦</span><span>Sejarah</span></button>
+        <button data-view="info"><span class="ti" aria-hidden="true">ⓘ</span><span>Info</span></button>
+      </nav>
+      <div class="top-actions">
+        <button class="btn ghost" id="btnBackup" title="Muat turun backup">⭳ Backup</button>
+        <button class="btn ghost icon" id="btnMenu" title="Menu" aria-label="Menu">⋮</button>
+      </div>
+    </div>
+    <div class="filters">
+      <div class="seg" id="personSeg">
+        <button data-person="all" class="active">Semua</button>
+        <button data-person="adzim">Adzim</button>
+        <button data-person="wahidah">Wahidah</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="banner"></div>
+  <main id="app"></main>
+
+  <div id="menuPop" class="menu" hidden>
+    <button data-act="backup">⭳ Muat turun backup (JSON)</button>
+    <button data-act="share">⇪ Kongsi backup…</button>
+    <button data-act="restore">⭱ Pulihkan dari backup…</button>
+    <button data-act="csv">▦ Export CSV (Excel)</button>
+    <hr>
+    <button data-act="deleteMonth" class="danger">Padam bulan terakhir…</button>
+  </div>
+
+  <dialog id="dlg"><form method="dialog" id="dlgForm"></form></dialog>
+  <input type="file" id="fileRestore" accept="application/json,.json" hidden>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
